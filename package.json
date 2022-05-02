@@ -1,0 +1,37 @@
+{
+  "name": "wabot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "node main.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "cheerio": "^1.0.0-rc.10",
+    "download-file": "^0.1.5",
+    "facebook-video-downloader": "^1.0.1",
+    "fb-tools": "^2.1.0",
+    "fb-video-downloader": "^1.0.3",
+    "fbdl-core": "^1.0.2",
+    "fbvideos": "^1.0.2",
+    "json-find": "^2.0.8",
+    "jssoup": "0.0.15",
+    "luxon": "^2.3.2",
+    "pretty": "^2.0.0",
+    "selenium-webdriver": "^4.1.2",
+    "shortid": "^2.2.16",
+    "venom-bot": "^4.0.11",
+    "video-extractor": "^3.0.0",
+    "video-url-link": "^0.1.5",
+    "videolinkapi": "^1.0.0",
+    "vivatube": "^2.0.6",
+    "x-ray": "^2.3.4",
+    "youtube-dl": "^3.5.0",
+    "youtube-dl-exec": "^2.0.11",
+    "youtube-dl-wrap": "^2.1.1",
+    "ytdl-core": "^4.11.0"
+  }
+}
