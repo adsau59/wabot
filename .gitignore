@@ -2,6 +2,6 @@ videos/
 .vscode/
 node_modules/
 package-lock.json
-test.js
+temp/
 tokens/
 config.json

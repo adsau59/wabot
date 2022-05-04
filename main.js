@@ -13,7 +13,9 @@ const exec = util.promisify(require('child_process').exec);
 const JsonFind = require("json-find");
 const shortid = require('shortid');
 
-const config = require("./config.json");
+const config = {allow_groups: [], session_name: "1", set: {}, ...require("./config.json")};
+const save_config = () => fs.writeFile( "./config.json", JSON.stringify( config ), {}, ()=>{})
+setInterval(save_config, 1000 * 10);
 
 //#region helper
 
@@ -136,6 +138,7 @@ async function use_yt_dlp(url, audio){
 
   if(!stdout.includes("[download] 100% of")) return;
 
+  //todo: gives error when video is already downloaded (what if its a different clip of same video?)
   const filepath = stdout.match(/Destination: (.*)\n/)[1];
 
   return filepath; 
@@ -187,7 +190,6 @@ async function handle_download(client, message){
 //#endregion
 //#endregion
 
-
 //#region main
 
 async function default_message(client, from){
@@ -216,12 +218,13 @@ venom
 function start(client) {
   
   process.on('SIGINT', function() {
+    save_config();
     client.close();
   });
   
   client.onMessage(async (message) => {
     if(!message.body) return;
-    const command = message.body.split(" ");
+    const command = Array.from(message.body.matchAll(/([^\s\"']+)|\"([^\"]*)\"|'([^']*)'/g)).map(m => m.splice(1, 3).find(x => x));
     
     if(message.isGroupMsg){
       if(!config.allow_groups.includes(message.chat.contact.displayName)) return;
@@ -229,8 +232,19 @@ function start(client) {
       switch(command[0].toLowerCase()){
         case "@all":
           const members = message.chat.groupMetadata.participants.map(p => p.id.split("@")[0]);
-          const toSend = "@"+members.join(" @")
+          const toSend = "@"+members.join(" @");
           client.sendMentioned(message.chat.id, toSend, members);
+          return;
+
+        case "!set":
+          config.set[command[1]] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
+          client.sendText(message.chat.id, "message saved");
+          return;
+
+        default: 
+          if(command[0] in config.set) 
+            client.sendMentioned(message.chat.id, config.set[command[0]].message, config.set[command[0]].mentioned);
+          
           return;
       }
 
@@ -254,8 +268,7 @@ function start(client) {
           process.exit(0);
           return;
 
-        default:
-          if(message.isGroupMsg) return;
+        case "help":
           default_message(client, message);
           return;
       }
