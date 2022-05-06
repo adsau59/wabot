@@ -92,11 +92,11 @@ async function handle_youtube_download(client, from, command){
   const filepath = await use_yt_dlp(command[1], audio);
 
   if(filepath){
-      client.sendText(from, "Uploading the video :)")
-      client.sendFile(from, filepath);
+      await client.sendText(from, "Uploading the video :)")
+      await client.sendFile(from, filepath);
   }else{
     //todo give better errors
-    client.sendText(from, "Failed to download the video");
+    await client.sendText(from, "Failed to download the video");
   }
 }
 
@@ -124,7 +124,7 @@ async function use_yt_dlp(url, audio){
   if(audio){
     options += " -f bestaudio "
   }else{
-    if(url.includes("/clip/")) options += " -f 18/135/133/22 "
+    if(url.includes("/clip/")) options += " -f 18/135/133/22 ";
     else{
       
       const { stdout, stderr } = await exec(`yt-dlp -F ${url}`);
@@ -135,7 +135,9 @@ async function use_yt_dlp(url, audio){
         return groups[2] == "MiB" && Number(groups[1]) < 16;
       });
       const formatIds = lessThan16mb.map(o => Number(Array.from(o.matchAll(/^(\d+)\s+/))[0][1]));
-      if(!formatIds) return;
+      if(!formatIds) {
+        console.log("couldn't find a valid format"); 
+      }
 
       const format = Math.max(...formatIds).toString();
       options += ` -f ${format} `;
@@ -147,16 +149,23 @@ async function use_yt_dlp(url, audio){
     options += ` --external-downloader ffmpeg --external-downloader-args "-ss ${time_info.startTime} -to ${time_info.endTime}" `;
   }
 
-  const command = `yt-dlp -P videos/ ${options} ${url}`;
+  const command = `yt-dlp -P videos/ ${options} ${url} -o "%(title)s-%(id)s-%(format_id)s.%(ext)s"`;
   console.log(`running: ${command}`)
   const { stdout, stderr } = await exec(command);
 
   if(!stdout.includes("[download] 100% of")) return;
 
   //todo: gives error when video is already downloaded (what if its a different clip of same video?)
-  const filepath = stdout.match(/Destination: (.*)\n/)[1];
+  let filepathMatch = stdout.match(/Destination: (.*)\n/);
+  if(!filepathMatch){
+    filepathMatch = stdout.match(/download\]\s(.*)\shas/);
+  }
+  if(!filepathMatch){
+    console.log("Couldn't find filename");
+    return;
+  }
 
-  return filepath; 
+  return filepathMatch[1]; 
 }
 //#endregion
 
