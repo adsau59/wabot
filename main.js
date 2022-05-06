@@ -124,7 +124,22 @@ async function use_yt_dlp(url, audio){
   if(audio){
     options += " -f bestaudio "
   }else{
-    options += " -f 18/135/133/22 "
+    if(url.includes("/clip/")) options += " -f 18/135/133/22 "
+    else{
+      
+      const { stdout, stderr } = await exec(`yt-dlp -F ${url}`);
+      const formats = stdout.split("\n");
+      const mp4_formats = formats.filter(o => o.match(/\d+\s+mp4/));
+      const lessThan16mb = mp4_formats.filter(o => {
+        const groups = Array.from(o.matchAll(/\|(?:\s|~)+(\d+.\d+)(\w+B)/))[0];
+        return groups[2] == "MiB" && Number(groups[1]) < 16;
+      });
+      const formatIds = lessThan16mb.map(o => Number(Array.from(o.matchAll(/^(\d+)\s+/))[0][1]));
+      if(!formatIds) return;
+
+      const format = Math.max(...formatIds).toString();
+      options += ` -f ${format} `;
+    }
   }
   
   if(url.includes("/clip/")){
@@ -174,7 +189,13 @@ async function handle_download(client, message){
   }
 
   if(command[1].includes("yout")){
-    handle_youtube_download(client, message.from, command);
+    try{
+      await handle_youtube_download(client, message.from, command);
+    }
+    catch(e){
+      console.log(e.stack);
+      client.sendText(message.from, "Unkown error occured :(");
+    }
   }
   else if(command[1].includes("fb") || command[1].includes("facebook")){
     handle_facebook_download(client, message.from, command);
