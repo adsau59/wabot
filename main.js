@@ -13,8 +13,9 @@ const exec = util.promisify(require('child_process').exec);
 const JsonFind = require("json-find");
 const shortid = require('shortid');
 
-const config = {allow_groups: [], session_name: "1", set: {}, ...require("./config.json")};
-const save_config = () => fs.writeFile( "./config.json", JSON.stringify( config ), {}, ()=>{})
+const config = {groups: {}, session_name: "1", ...require("./config.json")};
+const save_config = () => fs.writeFile( "./config.json", JSON.stringify( config ), {}, ()=>{console.log("config saved")})
+const allowed_groups = () => Object.keys(config.groups);
 
 //#region helper
 
@@ -226,25 +227,30 @@ function start(client) {
     const command = Array.from(message.body.matchAll(/([^\s\"']+)|\"([^\"]*)\"|'([^']*)'/g)).map(m => m.splice(1, 3).find(x => x));
     
     if(message.isGroupMsg){
-      if(!config.allow_groups.includes(message.chat.contact.displayName)) return;
+      const groupId = message.chat.id;
+      if(!allowed_groups().includes(groupId)) return;
+      const group = config.groups[groupId];
 
       switch(command[0].toLowerCase()){
         case "@all":
           const members = message.chat.groupMetadata.participants.map(p => p.id.split("@")[0]);
           const toSend = "@"+members.join(" @");
-          client.sendMentioned(message.chat.id, toSend, members);
+          client.sendMentioned(groupId, toSend, members);
           return;
 
         case "!set":
-          config.set[command[1]] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
+          if(!group) return;
+          if(!group.set) group.set = {}
+          group.set[command[1].toLowerCase()] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
           save_config();
-          client.sendText(message.chat.id, "message saved");
+          client.sendText(groupId, "message saved");
           return;
 
         default: 
-          if(command[0] in config.set) 
-            client.sendMentioned(message.chat.id, config.set[command[0]].message, config.set[command[0]].mentioned);
-          
+          if(command[0].toLowerCase() in group.set){
+            const messageInfo = group.set[command[0]];
+            client.sendMentioned(groupId, messageInfo.message, messageInfo.mentioned);
+          }
           return;
       }
 
@@ -253,7 +259,7 @@ function start(client) {
       console.log(`got message ${message.body} from ${message.from}`);
      
 
-      switch(command[0].toLowerCase()){
+      switch(command[0].toLowerCase()){ 
         case "download":
           handle_download(client, message)
           return;
@@ -263,9 +269,27 @@ function start(client) {
           return;
 
         case "quit":
+          if(!config.admin.includes(message.from)) return;
           await client.sendText(message.from, "bye!");
           await client.close();
           process.exit(0);
+          return;
+
+        case "addgroup":
+          if(!config.admin.includes(message.from)) return;
+          const group = (await client.getAllChats()).filter(c => c.isGroup).find(g => g.contact.name == command[1]);
+          if(!group) {
+            client.sendText(message.from, "Group not found.");
+            return;
+          }
+          if(allowed_groups().includes(group.id._serialized)){
+            client.sendText(message.from, "Group already added.");
+            return;
+          }
+          config.groups[group.id._serialized] = {};
+          save_config();
+          client.sendText(message.from, "Group added!");
+          client.sendText(group.id._serialized, "Hi! I have been added to the group :)");
           return;
 
         case "help":
