@@ -14,7 +14,7 @@ const JsonFind = require("json-find");
 const shortid = require('shortid');
 
 const config = {groups: {}, session_name: "1", ...require("./config.json")};
-const save_config = () => fs.writeFile( "./config.json", JSON.stringify( config ), {}, ()=>{console.log("config saved")})
+const save_config = () => fs.writeFile( "./config.json", JSON.stringify(config,null, 4), {}, ()=>{console.log("config saved")})
 const allowed_groups = () => Object.keys(config.groups);
 
 //#region helper
