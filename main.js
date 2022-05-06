@@ -15,7 +15,6 @@ const shortid = require('shortid');
 
 const config = {allow_groups: [], session_name: "1", set: {}, ...require("./config.json")};
 const save_config = () => fs.writeFile( "./config.json", JSON.stringify( config ), {}, ()=>{})
-setInterval(save_config, 1000 * 10);
 
 //#region helper
 
@@ -238,6 +237,7 @@ function start(client) {
 
         case "!set":
           config.set[command[1]] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
+          save_config();
           client.sendText(message.chat.id, "message saved");
           return;
 
