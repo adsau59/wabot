@@ -124,24 +124,7 @@ async function use_yt_dlp(url, audio){
   if(audio){
     options += " -f bestaudio "
   }else{
-    if(url.includes("/clip/")) options += " -f 18/135/133/22 ";
-    else{
-      
-      const { stdout, stderr } = await exec(`yt-dlp -F ${url}`);
-      const formats = stdout.split("\n");
-      const mp4_formats = formats.filter(o => o.match(/\d+\s+mp4/));
-      const lessThan16mb = mp4_formats.filter(o => {
-        const groups = Array.from(o.matchAll(/\|(?:\s|~)+(\d+.\d+)(\w+B)/))[0];
-        return groups[2] == "MiB" && Number(groups[1]) < 16;
-      });
-      const formatIds = lessThan16mb.map(o => Number(Array.from(o.matchAll(/^(\d+)\s+/))[0][1]));
-      if(!formatIds) {
-        console.log("couldn't find a valid format"); 
-      }
-
-      const format = Math.max(...formatIds).toString();
-      options += ` -f ${format} `;
-    }
+    options += " -f 18/135/133/22 ";
   }
   
   if(url.includes("/clip/")){
@@ -164,8 +147,15 @@ async function use_yt_dlp(url, audio){
     console.log("Couldn't find filename");
     return;
   }
+  let filename = filepathMatch[1];
+  const sizeReg = stdout.match(/\[download\] 100% of (\d+\.\d+)(\w+)/);
+  if(sizeReg[2] == "MiB" && Number(sizeReg[1]) >= 16){
+    console.log("file is too big for whatsapp, converting it");
+    const { stdout, stderr } = await exec(`ffmpeg_target_size "${filename}" 16`);
+    filename = stdout.match(/-> "(.*)"/)[1];
+  }
 
-  return filepathMatch[1]; 
+  return filename; 
 }
 //#endregion
 
