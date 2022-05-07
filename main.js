@@ -100,7 +100,7 @@ async function handle_youtube_download(client, from, command){
   }
 }
 
-async function get_clip_time(url) {
+async function get_clip_info(url) {
   let driver = await new Builder().forBrowser(Browser.CHROME).setChromeOptions(new chrome.Options().addArguments('--headless')).build();
   try {
     await driver.get(url);
@@ -109,9 +109,10 @@ async function get_clip_time(url) {
     const doc = JsonFind(ytInitialData);
     const startTime = convertMsToTime(doc.checkKey("startTimeMs"));
     const endTime = convertMsToTime(doc.checkKey("endTimeMs"));
+    const newUrl = `https://youtu.be/${doc.checkKey("videoId")}`;
     console.log(`from ${startTime} to ${endTime}`)
 
-    return {startTime, endTime}
+    return {startTime, endTime, newUrl}
     
   } finally {
     await driver.quit();
@@ -128,8 +129,9 @@ async function use_yt_dlp(url, audio){
   }
   
   if(url.includes("/clip/")){
-    const time_info = await get_clip_time(url);
-    options += ` --external-downloader ffmpeg --external-downloader-args "-ss ${time_info.startTime} -to ${time_info.endTime}" `;
+    const clip_info = await get_clip_info(url);
+    url = clip_info.newUrl;
+    options += ` --external-downloader ffmpeg --external-downloader-args "-ss ${clip_info.startTime} -to ${clip_info.endTime}" `;
   }
 
   const command = `yt-dlp -P videos/ ${options} ${url} -o "%(title)s-%(id)s-%(format_id)s.%(ext)s"`;
