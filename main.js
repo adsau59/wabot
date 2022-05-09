@@ -105,11 +105,10 @@ async function get_clip_info(url) {
   try {
     await driver.get(url);
     const ytInitialData = await driver.executeScript('return ytInitialData');
-    console.log(await ytInitialData);
     const doc = JsonFind(ytInitialData);
     const startTime = convertMsToTime(doc.checkKey("startTimeMs"));
     const endTime = convertMsToTime(doc.checkKey("endTimeMs"));
-    const newUrl = `https://youtu.be/${doc.checkKey("videoId")}`;
+    const newUrl = `https://youtu.be/${ytInitialData.currentVideoEndpoint.watchEndpoint.videoId}`;
     console.log(`from ${startTime} to ${endTime}`)
 
     return {startTime, endTime, newUrl}
