@@ -120,6 +120,7 @@ async function get_clip_info(url) {
 
 async function use_yt_dlp(url, audio){
   let options = "";
+  let namePostfix = "";
   
   if(audio){
     options += " -f bestaudio "
@@ -131,9 +132,10 @@ async function use_yt_dlp(url, audio){
     const clip_info = await get_clip_info(url);
     url = clip_info.newUrl;
     options += ` --external-downloader ffmpeg --external-downloader-args "-ss ${clip_info.startTime} -to ${clip_info.endTime}" `;
+    namePostfix += `-${clip_info.startTime}-${clip_info.endTime}`;
   }
 
-  const command = `yt-dlp -P videos/ ${options} ${url} -o "%(title)s-%(id)s-%(format_id)s.%(ext)s"`;
+  const command = `yt-dlp -P videos/ ${options} ${url} -o "%(title)s-%(id)s-%(format_id)s${namePostfix}.%(ext)s"`;
   console.log(`running: ${command}`)
   const { stdout, stderr } = await exec(command);
 
