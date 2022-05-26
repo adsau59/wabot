@@ -135,7 +135,7 @@ async function use_yt_dlp(url, audio){
     namePostfix += `-${clip_info.startTime}-${clip_info.endTime}`;
   }
 
-  const command = `yt-dlp -P videos/ ${options} ${url} -o "%(title)s-%(id)s-%(format_id)s${namePostfix}.%(ext)s"`;
+  const command = `yt-dlp -P videos/ ${options} ${url} -o "%(id)s-%(format_id)s${namePostfix}.%(ext)s"`;
   console.log(`running: ${command}`)
   const { stdout, stderr } = await exec(command);
 
