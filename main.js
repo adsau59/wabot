@@ -67,37 +67,22 @@ async function get_facebook_url_selenium(url) {
   }
 };
 
-async function handle_facebook_download(client, from, command){
-    const download_url = await get_facebook_video(command[1]);
-    const filename = `${shortid.generate()}.mp4`;
+async function handle_facebook_download(url){
+    const download_url = await get_facebook_video(url);
 
-    if(!download_url){
-      client.sendText(from, "Failed to find video :(");
-      return;
-    }
-    client.sendText(from, "Downloading the video...");
-    const err = await download_file(download_url, filename);
-    if(!err){
-      await client.sendText(from, "Uploading the video :)")
-      client.sendFile(from, `videos/${filename}`);
-    }else{
-      await client.sendText(from, "Failed to download :(")
-    }
+    if(!download_url) return {error: 1, filepath: null}
+
+    const filename = `${shortid.generate()}.mp4`;
+    const error = await download_file(download_url, filename);
+    return {error, filepath: `videos/${filename}`};
 }
 //#endregion
 
   //#region youtube
-async function handle_youtube_download(client, from, command){
-  const audio = command.length > 2 && command[2] == "audio";
-  const filepath = await use_yt_dlp(command[1], audio);
-
-  if(filepath){
-      await client.sendText(from, "Uploading the video :)")
-      await client.sendFile(from, filepath);
-  }else{
-    //todo give better errors
-    await client.sendText(from, "Failed to download the video");
-  }
+async function handle_youtube_download(url, audio){
+  const filepath = await use_yt_dlp(url, audio);
+  const error = filepath ? 0 : 1;
+  return {error, filepath};
 }
 
 async function get_clip_info(url) {
@@ -181,32 +166,45 @@ function download_file(url, filename, retry=0){
   })
 }
 
+/**
+ * 
+ * @param {venom.Whatsapp} client 
+ * @param {venom.Message} message 
+ * @returns 
+ */
 async function handle_download(client, message){
-  client.sendText(message.from, "Looking for the video, please wait");
-  const command = message.body.split(" ");
-
-  if(command.length < 2){
-    default_message(client.from, message)
+  const match = message.body.match(/(http.*(?:(yout)|(fb|facebook))\S*)/);
+  const audio = message.body.includes("audio");
+  if(!match){
     return;
   }
 
-  if(command[1].includes("yout")){
-    try{
-      await handle_youtube_download(client, message.from, command);
+  try{
+    client.sendText(message.from, "Downloading the video, please wait");
+    let out = null;
+    if(match[2]){
+      out = await handle_youtube_download(match[1], audio);
     }
-    catch(e){
-      console.log(e.stack);
-      client.sendText(message.from, "Unkown error occured :(");
+    else if(match[3]){
+      out = await handle_facebook_download(match[1]);
+    }else{
+      await client.sendText(from, "Unknown url");
+      console.log("Unknown url");
+      return;
     }
-  }
-  else if(command[1].includes("fb") || command[1].includes("facebook")){
-    handle_facebook_download(client, message.from, command);
-  }
-  else{
-    client.sendText(message.from, "currently only supports youtube and facebook");
-    return;
-  }
 
+    if(!out.error){
+      await client.sendText(message.from, "Uploading the video :)")
+      await client.sendFile(message.from, out.filepath);
+    }else{
+      //todo give better errors
+      await client.sendText(message.from, "Failed to download the video");
+    }
+  }
+  catch(e){
+    console.log(e.stack);
+    client.sendText(message.from, "Unkown error occured :(");
+  }
   
 }
 
@@ -280,13 +278,11 @@ function start(client) {
     }else{
 
       console.log(`got message ${message.body} from ${message.from}`);
-     
+    
+
+      handle_download(client, message);
 
       switch(command[0].toLowerCase()){ 
-        case "download":
-          handle_download(client, message)
-          return;
-
         case "hi":
           client.sendText(message.from, "Hello!");
           return;
