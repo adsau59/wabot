@@ -267,6 +267,13 @@ function start(client) {
           client.sendText(groupId, "message saved");
           return;
 
+        case "!help":
+          if(command[1] != "set") return;
+          const reply = "Usage:\n!set <key> <message>\nRepeats a set message when the key is recieved\n\ncurrently set keys:\n";
+          const keys = Object.keys(group.set).join("\n");
+          client.sendText(groupId, reply+keys);
+          return;
+
         default: 
           if(command[0].toLowerCase() in group.set){
             const messageInfo = group.set[command[0]];
