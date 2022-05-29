@@ -262,6 +262,7 @@ function start(client) {
         case "!set":
           if(!group) return;
           if(!group.set) group.set = {}
+          if(!command[2]) return;
           group.set[command[1].toLowerCase()] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
           save_config();
           client.sendText(groupId, "message saved");
