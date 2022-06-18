@@ -1,13 +1,8 @@
-'use strict';
-
 const venom = require('venom-bot');
-const youtubedl = require('youtube-dl-exec')
 const fs = require('fs');
 const download = require('download-file');
-const fbdown = require('fb-video-downloader');
 const {Builder, Browser, By, Key, until} = require('selenium-webdriver');
 const chrome    = require('selenium-webdriver/chrome');
-const getDownloadUrl = require('facebook-video-downloader');
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const JsonFind = require("json-find");
@@ -39,20 +34,6 @@ function convertMsToTime(milliseconds) {
 //#region download
 
 //#region facebook
-async function get_facebook_video(url){
-  try{
-    console.log("trying facebook-video-downloader")
-    const out = await getDownloadUrl(url);
-    console.log(out)
-
-    if("sd" in out){
-      return out.sd.url;
-    }
-  }catch{}
-
-  return get_facebook_url_selenium(url);
-}
-
 async function get_facebook_url_selenium(url) {
   let driver = await new Builder().forBrowser(Browser.CHROME).setChromeOptions(new chrome.Options().addArguments('--headless')).build();
   try {
@@ -68,7 +49,7 @@ async function get_facebook_url_selenium(url) {
 };
 
 async function handle_facebook_download(url){
-    const download_url = await get_facebook_video(url);
+    const download_url = await get_facebook_url_selenium(url);
 
     if(!download_url) return {error: 1, filepath: null}
 
@@ -176,60 +157,148 @@ async function handle_download(client, message){
   const match = message.body.match(/(http.*(?:(yout)|(fb|facebook))\S*)/);
   const audio = message.body.includes("audio");
   if(!match){
+    return false;
+  }
+
+  await client.sendText(message.from, "Downloading the video, please wait");
+  let out = null;
+  if(match[2]){
+    out = await handle_youtube_download(match[1], audio);
+  }
+  else if(match[3]){
+    out = await handle_facebook_download(match[1]);
+  }else{
+    await client.sendText(from, "Unknown url");
+    console.log("Unknown url");
     return;
   }
 
-  try{
-    client.sendText(message.from, "Downloading the video, please wait");
-    let out = null;
-    if(match[2]){
-      out = await handle_youtube_download(match[1], audio);
-    }
-    else if(match[3]){
-      out = await handle_facebook_download(match[1]);
-    }else{
-      await client.sendText(from, "Unknown url");
-      console.log("Unknown url");
-      return;
-    }
+  if(!out.error){
+    await client.sendText(message.from, "Uploading the video :)")
+    await client.sendFile(message.from, out.filepath);
+  }else{
+    //todo give better errors
+    await client.sendText(message.from, "Failed to download the video");
+  }
 
-    if(!out.error){
-      await client.sendText(message.from, "Uploading the video :)")
-      await client.sendFile(message.from, out.filepath);
-    }else{
-      //todo give better errors
-      await client.sendText(message.from, "Failed to download the video");
-    }
-  }
-  catch(e){
-    console.log(e.stack);
-    client.sendText(message.from, "Unkown error occured :(");
-  }
-  
+  return true;
 }
 
 //#endregion
+//#endregion
+
+//#region bot
+
+async function on_group_message(client, message){
+  const command = Array.from(message.body.matchAll(/([^\s\"']+)|\"([^\"]*)\"|'([^']*)'/g)).map(m => m.splice(1, 3).find(x => x));
+
+  const groupId = message.chat.id;
+    if(!allowed_groups().includes(groupId)) return;
+    const group = config.groups[groupId];
+
+    switch(command[0].toLowerCase()){
+      case "@all":
+        const members = message.chat.groupMetadata.participants.map(p => p.id.split("@")[0]);
+        const toSend = "@"+members.join(" @");
+        client.sendMentioned(groupId, toSend, members);
+        return;
+
+      case "!set":
+        if(!group) return;
+        if(!group.set) group.set = {}
+        if(!command[2]) return;
+        group.set[command[1].toLowerCase()] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
+        save_config();
+        client.sendText(groupId, "message saved");
+        return;
+
+      case "!help":
+        if(command.length <= 1){
+          client.sendText(groupId, "Usage:\n!help <command>\nShows help for different commands\n\nAvailable commands:\nall\nset");
+          return;
+        }
+        switch(command[1]){
+          case "all":
+            client.sendText(groupId, "Usage:\n@all\n\nTags everyone in the group");
+            return;
+
+          case "set":
+            const reply = "Usage:\n!set <key> <message>\nRepeats a set message when the key is recieved\n\ncurrently set keys:\n";
+            const keys = Object.keys(group.set).join("\n");
+            client.sendText(groupId, reply+keys);
+            return;
+
+          default:
+            client.sendText(groupId, "Invalid command");
+            return;
+        }
+
+      default: 
+        if(command[0].toLowerCase() in group.set){
+          const messageInfo = group.set[command[0]];
+          client.sendMentioned(groupId, messageInfo.message, messageInfo.mentioned);
+        }
+        return;
+    }
+}
+
+async function on_direct_message(client, message){
+  console.log(`got message ${message.body} from ${message.from}`);
+  const command = Array.from(message.body.matchAll(/([^\s\"']+)|\"([^\"]*)\"|'([^']*)'/g)).map(m => m.splice(1, 3).find(x => x));
+  
+    if(await handle_download(client, message)) return;
+
+    switch(command[0].toLowerCase()){ 
+      case "hi":
+        await client.sendText(message.from, "Hello!");
+        return;
+
+      case "quit":
+        if(!config.admin.includes(message.from)) return;
+        await client.sendText(message.from, "bye!");
+        await client.close();
+        process.exit(0);
+        return;
+
+      case "addgroup":
+        if(!config.admin.includes(message.from)) return;
+        const group = (await client.getAllChats()).filter(c => c.isGroup).find(g => g.contact.name == command[1]);
+        if(!group) {
+          client.sendText(message.from, "Group not found.");
+          return;
+        }
+        if(allowed_groups().includes(group.id._serialized)){
+          client.sendText(message.from, "Group already added.");
+          return;
+        }
+        config.groups[group.id._serialized] = {};
+        save_config();
+        client.sendText(message.from, "Group added!");
+        client.sendText(group.id._serialized, "Hi! I have been added to the group :)");
+        return;
+    }
+}
+
 //#endregion
 
 //#region main
 
-async function default_message(client, from){
-  await client.sendText(from, "type `download` followed by the url you want to send like:");
-  await client.sendText(from, "download https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+/**
+ * 
+ * @param {venom.Whatsapp} client 
+ * @param {venom.Message} message 
+ * @returns 
+ */
+async function on_message(client, message){
+  if(!message.body) return;
+  if(message.chatId == "status@broadcast") return;
+  
+  if(message.isGroupMsg){
+    await on_group_message(client, message);
+  }else{
+    await on_direct_message(client, message);
+  }
 }
-
-venom
-  .create({
-    session: config.session_name, //name of session
-    multidevice: true
-  })
-  .then((client) => {
-    start(client);
-    console.log("ready");
-  })
-  .catch((erro) => {
-    console.log(erro);
-  });
 
 
   /**
@@ -244,90 +313,33 @@ function start(client) {
   });
   
   client.onMessage(async (message) => {
-    if(!message.body) return;
-    const command = Array.from(message.body.matchAll(/([^\s\"']+)|\"([^\"]*)\"|'([^']*)'/g)).map(m => m.splice(1, 3).find(x => x));
-    
-    if(message.isGroupMsg){
-      const groupId = message.chat.id;
-      if(!allowed_groups().includes(groupId)) return;
-      const group = config.groups[groupId];
-
-      switch(command[0].toLowerCase()){
-        case "@all":
-          const members = message.chat.groupMetadata.participants.map(p => p.id.split("@")[0]);
-          const toSend = "@"+members.join(" @");
-          client.sendMentioned(groupId, toSend, members);
-          return;
-
-        case "!set":
-          if(!group) return;
-          if(!group.set) group.set = {}
-          if(!command[2]) return;
-          group.set[command[1].toLowerCase()] = {message: command[2], mentioned: message.mentionedJidList.map(m => m.split("@")[0])};
-          save_config();
-          client.sendText(groupId, "message saved");
-          return;
-
-        case "!help":
-          if(command[1] != "set") return;
-          const reply = "Usage:\n!set <key> <message>\nRepeats a set message when the key is recieved\n\ncurrently set keys:\n";
-          const keys = Object.keys(group.set).join("\n");
-          client.sendText(groupId, reply+keys);
-          return;
-
-        default: 
-          if(command[0].toLowerCase() in group.set){
-            const messageInfo = group.set[command[0]];
-            client.sendMentioned(groupId, messageInfo.message, messageInfo.mentioned);
-          }
-          return;
-      }
-
-    }else{
-
-      console.log(`got message ${message.body} from ${message.from}`);
     
 
-      handle_download(client, message);
-
-      switch(command[0].toLowerCase()){ 
-        case "hi":
-          client.sendText(message.from, "Hello!");
-          return;
-
-        case "quit":
-          if(!config.admin.includes(message.from)) return;
-          await client.sendText(message.from, "bye!");
-          await client.close();
-          process.exit(0);
-          return;
-
-        case "addgroup":
-          if(!config.admin.includes(message.from)) return;
-          const group = (await client.getAllChats()).filter(c => c.isGroup).find(g => g.contact.name == command[1]);
-          if(!group) {
-            client.sendText(message.from, "Group not found.");
-            return;
-          }
-          if(allowed_groups().includes(group.id._serialized)){
-            client.sendText(message.from, "Group already added.");
-            return;
-          }
-          config.groups[group.id._serialized] = {};
-          save_config();
-          client.sendText(message.from, "Group added!");
-          client.sendText(group.id._serialized, "Hi! I have been added to the group :)");
-          return;
-
-        case "help":
-          default_message(client, message);
-          return;
-      }
-
+    try{
+      await on_message(client, message)
+    }catch(err){
+      console.log(`GOT ERROR ${JSON.stringify(err)} while handling message: \n\n ${JSON.stringify(message)} `);
     }
 
   });
 
 }
+
+function main(){
+  venom.create({
+    session: config.session_name, //name of session
+    multidevice: true
+  })
+  .then((client) => {
+    start(client);
+    console.log("ready");
+  })
+  .catch((erro) => {
+    console.log(erro);
+  });
+}
+
+main();
+
 
 //#endregion
