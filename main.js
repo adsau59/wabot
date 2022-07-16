@@ -46,7 +46,7 @@ async function get_facebook_url_selenium(url) {
   } finally {
     await driver.quit();
   }
-};
+}
 
 async function handle_facebook_download(url){
     const download_url = await get_facebook_url_selenium(url);
@@ -59,7 +59,7 @@ async function handle_facebook_download(url){
 }
 //#endregion
 
-  //#region youtube
+//#region youtube
 async function handle_youtube_download(url, audio){
   const filepath = await use_yt_dlp(url, audio);
   const error = filepath ? 0 : 1;
@@ -138,6 +138,40 @@ async function use_yt_dlp(url, audio){
 }
 //#endregion
 
+//#region instagram
+
+async function handle_instagram_download(url){
+  const download_url = await get_instagram_url_selenium(url);
+  if(!download_url) return {error: 1, filepath: null}
+  const filename = `${shortid.generate()}.mp4`;
+  const error = await download_file(download_url, filename);
+  return {error, filepath: `videos/${filename}`};
+}
+
+async function get_instagram_url_selenium(url) {
+  let driver = await new Builder().forBrowser(Browser.CHROME).setChromeOptions(new chrome.Options()
+  .addArguments('--headless')
+  .addArguments('--user-data-dir=D:\\DriverUserData\\Profile 1')
+  .addArguments("--user-agent='Mozilla/5.0\ \(Linux\;\ Android\ 5.0\;\ SM-G900P\ Build/LRX21T\)\ AppleWebKit/537.36\ \(KHTML,\ like\ Gecko\)\ Chrome/57.0.2987.133\ Mobile\ Safari/537.36'")
+  ).build();
+  try {
+    console.log(`visiting ${url}`)
+    await driver.get(url);
+    const locator = By.xpath('//video[contains(@src, "https")]');
+    await driver.wait(until.elementLocated(locator), 5000);
+    const videoElement = driver.findElement(locator);
+    const download_url = await videoElement.getAttribute("src");
+    console.log(`found url ${download_url}`, );
+    return download_url;
+  } catch(e){
+      console.log(e.stack)
+  } finally {
+    await driver.quit();
+  }
+}
+
+//#endregion
+
 //#region common
 function download_file(url, filename, retry=0){
   return new Promise(r => {
@@ -164,7 +198,7 @@ function download_file(url, filename, retry=0){
  * @returns 
  */
 async function handle_download(client, message){
-  const match = message.body.match(/(http.*(?:(yout)|(fb|facebook))\S*)/);
+  const match = message.body.match(/(http.*(?:(yout)|(fb|facebook)|(insta))\S*)/);
   const audio = message.body.includes("audio");
   if(!match){
     return false;
@@ -178,6 +212,8 @@ async function handle_download(client, message){
   }
   else if(match[3]){
     out = await handle_facebook_download(match[1]);
+  }else if(match[4]){
+    out = await handle_instagram_download(match[1]);
   }else{
     await client.sendText(from, "Unknown url");
     console.log("Unknown url");
