@@ -88,12 +88,12 @@ async function use_yt_dlp(url, audio){
   let options = "";
   let namePostfix = "";
   
+  // buidling th command to download depending on the input
   if(audio){
     options += " -f bestaudio "
   }else{
     options += " -f 18/135/133/22 ";
   }
-  
   if(url.includes("/clip/")){
     const clip_info = await get_clip_info(url);
     url = clip_info.newUrl;
@@ -101,24 +101,34 @@ async function use_yt_dlp(url, audio){
     namePostfix += `-${clip_info.startTime}-${clip_info.endTime}`;
   }
 
+  //running the command to download the video
   const command = `yt-dlp -P videos/ ${options} ${url} -o "%(id)s-%(format_id)s${namePostfix}.%(ext)s"`;
   console.log(`running: ${command}`)
   const { stdout, stderr } = await exec(command);
 
+  // check if download completed successfully
   if(!stdout.includes("[download] 100% of")) return;
 
-  //todo: gives error when video is already downloaded (what if its a different clip of same video?)
+  //get the name and path of the file downloaded
   let filepathMatch = stdout.match(/Destination: (.*)\n/);
-  if(!filepathMatch){
-    filepathMatch = stdout.match(/download\]\s(.*)\shas/);
-  }
+  if(!filepathMatch) filepathMatch = stdout.match(/download\]\s(.*)\shas/);
   if(!filepathMatch){
     console.log("Couldn't find filename");
     return;
   }
   let filename = filepathMatch[1];
+
+  const filenameParts = filename.match(/(.+?)(\.[^.]*$|$)/);  
+  if(audio && filenameParts[2] == ".webm"){
+    console.log("filetype is webm converting to m4a");
+    const convertToM4a = `ffmpeg -y -i ${filename} -vn ${filenameParts[1]}.m4a`;
+    const { stdout, stderr } = await exec(convertToM4a);
+    filename = `${filenameParts[1]}.m4a`;
+  }
+
+  //reduce the size of the video to 16mb if the size is too big
   const sizeReg = stdout.match(/\[download\] 100% of (\d+\.\d+)(\w+)/);
-  if(sizeReg[2] == "MiB" && Number(sizeReg[1]) >= 16){
+  if(sizeReg[2] == "MiB" && Number(sizeReg[1]) >= 16 && !audio){
     console.log("file is too big for whatsapp, converting it");
     const { stdout, stderr } = await exec(`ffmpeg_target_size "${filename}" 16`);
     filename = stdout.match(/-> "(.*)"/)[1];
@@ -128,7 +138,7 @@ async function use_yt_dlp(url, audio){
 }
 //#endregion
 
-//#region misc
+//#region common
 function download_file(url, filename, retry=0){
   return new Promise(r => {
     console.log(`downloading video ${url}`)
@@ -160,7 +170,8 @@ async function handle_download(client, message){
     return false;
   }
 
-  await client.sendText(message.from, "Downloading the video, please wait");
+  const typeString = audio ? "audio" : video;
+  await client.sendText(message.from, `Downloading the ${typeString}, please wait`);
   let out = null;
   if(match[2]){
     out = await handle_youtube_download(match[1], audio);
@@ -174,11 +185,11 @@ async function handle_download(client, message){
   }
 
   if(!out.error){
-    await client.sendText(message.from, "Uploading the video :)")
+    await client.sendText(message.from, `Uploading the ${typeString} :)`)
     await client.sendFile(message.from, out.filepath);
   }else{
     //todo give better errors
-    await client.sendText(message.from, "Failed to download the video");
+    await client.sendText(message.from, `Failed to download the ${typeString}`);
   }
 
   return true;
@@ -319,6 +330,7 @@ function start(client) {
       await on_message(client, message)
     }catch(err){
       console.log(`GOT ERROR ${JSON.stringify(err)} while handling message: \n\n ${JSON.stringify(message)} `);
+      console.log(err.stack);
     }
 
   });
