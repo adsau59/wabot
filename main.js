@@ -170,7 +170,7 @@ async function handle_download(client, message){
     return false;
   }
 
-  const typeString = audio ? "audio" : video;
+  const typeString = audio ? "audio" : "video";
   await client.sendText(message.from, `Downloading the ${typeString}, please wait`);
   let out = null;
   if(match[2]){
