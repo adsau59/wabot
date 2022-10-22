@@ -6,3 +6,4 @@ temp/
 tokens/
 config.json
 *.mbtree
+*.vbs

@@ -7,6 +7,7 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const JsonFind = require("json-find");
 const shortid = require('shortid');
+const path = require('path');
 
 const config = {groups: {}, session_name: "1", ...require("./config.json")};
 const save_config = () => fs.writeFile( "./config.json", JSON.stringify(config,null, 4), {}, ()=>{console.log("config saved")})
@@ -130,7 +131,9 @@ async function use_yt_dlp(url, audio){
   const sizeReg = stdout.match(/\[download\] 100% of (\d+\.\d+)(\w+)/);
   if(sizeReg[2] == "MiB" && Number(sizeReg[1]) >= 16 && !audio){
     console.log("file is too big for whatsapp, converting it");
-    const { stdout, stderr } = await exec(`ffmpeg_target_size "${filename}" 16`);
+    const command = `${path.join("scripts", "ffmpeg_target_size")} "${filename}" 16`;
+    console.log(`Running ${command}`);
+    const { stdout, stderr } = await exec(command);
     filename = stdout.match(/-> "(.*)"/)[1];
   }
 
