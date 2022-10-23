@@ -3,17 +3,13 @@
 
 ### Installing Dependencies:
 
-You can download the required environment dependencies using [Chocolatey](https://chocolatey.org/install)
+You can download the required external dependencies using [Chocolatey](https://chocolatey.org/install)
 
 ```
-choco install nodejs
-choco install ffmpeg
-choco install yt-dlp
-choco install chromedriver --version=106.0.5249.610
-choco install chrome --version=106.0.5249.119
+choco install nodejs ffmpeg yt-dlp chrome chromedriver
 ```
 
-if you are using some other version of chrome, make sure that it is compatible with the chrome driver.
+You can remove the name of the dependencies if you have it installed already, also, make sure that the version of chrome installed is compatible with the chromedriver.
 
 after cloning the repository, run
 ```
