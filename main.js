@@ -10,7 +10,8 @@ const shortid = require('shortid');
 const path = require('path');
 const readline = require('readline');
 
-const config = {groups: {}, session_name: "1", chrome_profile_name: "Profile 1", admin: [], ...require("./config.json")};
+const config = {groups: {}, session_name: "1", chrome_profile_name: "Profile 1", admin: [], ...(fs.existsSync('./config.json') ? require("./config.json") : {})};
+
 const save_config = (log=true) => fs.writeFile( "./config.json", JSON.stringify(config,null, 4), {}, ()=>{if(log)console.log("config saved")});
 const allowed_groups = () => Object.keys(config.groups);
 const chrome_profile_path = path.join(__dirname, "DriverUserData", config.chrome_profile_name);
