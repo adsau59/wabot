@@ -8,10 +8,12 @@ const exec = util.promisify(require('child_process').exec);
 const JsonFind = require("json-find");
 const shortid = require('shortid');
 const path = require('path');
+const readline = require('readline');
 
-const config = {groups: {}, session_name: "1", ...require("./config.json")};
-const save_config = () => fs.writeFile( "./config.json", JSON.stringify(config,null, 4), {}, ()=>{console.log("config saved")})
+const config = {groups: {}, session_name: "1", chrome_profile_name: "Profile 1", admin: [], ...require("./config.json")};
+const save_config = (log=true) => fs.writeFile( "./config.json", JSON.stringify(config,null, 4), {}, ()=>{if(log)console.log("config saved")});
 const allowed_groups = () => Object.keys(config.groups);
+const chrome_profile_path = path.join(__dirname, "DriverUserData", config.chrome_profile_name);
 
 //#region helper
 
@@ -154,7 +156,7 @@ async function handle_instagram_download(url){
 async function get_instagram_url_selenium(url) {
   let driver = await new Builder().forBrowser(Browser.CHROME).setChromeOptions(new chrome.Options()
   .addArguments('--headless')
-  .addArguments('--user-data-dir=D:\\DriverUserData\\Profile 1')
+  .addArguments(`--user-data-dir=${chrome_profile_path}`)
   .addArguments("--user-agent='Mozilla/5.0\ \(Linux\;\ Android\ 5.0\;\ SM-G900P\ Build/LRX21T\)\ AppleWebKit/537.36\ \(KHTML,\ like\ Gecko\)\ Chrome/57.0.2987.133\ Mobile\ Safari/537.36'")
   ).build();
   try {
@@ -350,43 +352,64 @@ async function on_message(client, message){
   }
 }
 
-
-  /**
-   * 
-   * @param {venom.Whatsapp} client 
-   */
-function start(client) {
+async function admin_number_setup(rl){
+  const adminNumber = await new Promise(r => rl.question(
+    "Please enter a number for admin account, with country code, but without any spaces or special characters?\n(Leave empty to skip)> ", 
+    r));
   
+    if(!adminNumber) return
+
+    config.admin.push(`${adminNumber}@c.us`);
+    save_config(false);
+}
+
+async function instagram_login_setup(rl){
+  console.log("\nOpening instagram,\nPlease login with an account you want to use for the bot.")
+  await new Promise(r => rl.question("Press enter to continue...", r));
+
+  const driver = await new Builder().forBrowser(Browser.CHROME).setChromeOptions(new chrome.Options()
+  .excludeSwitches("enable-logging")
+  .addArguments(`--user-data-dir=${chrome_profile_path}`)
+  .addArguments("--user-agent='Mozilla/5.0\ \(Linux\;\ Android\ 5.0\;\ SM-G900P\ Build/LRX21T\)\ AppleWebKit/537.36\ \(KHTML,\ like\ Gecko\)\ Chrome/57.0.2987.133\ Mobile\ Safari/537.36'")
+  ).build();
+  await driver.get("https://instagram.com");
+  await new Promise(r => rl.question("Press enter to close browser...", r));
+  driver.quit();
+}
+
+async function main(){
+  
+  if(process.argv.includes("--setup")){
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    await admin_number_setup(rl);
+    await instagram_login_setup(rl);
+    rl.close();
+    return;
+  }
+
+  const client = await venom.create({
+    session: config.session_name,
+    multidevice: true,
+    disableWelcome: true,
+  });
+
+  console.log("ready");
+
   process.on('SIGINT', function() {
     save_config();
     client.close();
   });
   
   client.onMessage(async (message) => {
-    
-
     try{
       await on_message(client, message)
     }catch(err){
       console.log(`GOT ERROR ${JSON.stringify(err)} while handling message: \n\n ${JSON.stringify(message)} `);
       console.log(err.stack);
     }
-
-  });
-
-}
-
-function main(){
-  venom.create({
-    session: config.session_name, //name of session
-    multidevice: true
-  })
-  .then((client) => {
-    start(client);
-    console.log("ready");
-  })
-  .catch((erro) => {
-    console.log(erro);
   });
 }
 

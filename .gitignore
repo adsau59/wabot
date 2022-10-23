@@ -7,3 +7,4 @@ tokens/
 config.json
 *.mbtree
 *.vbs
+DriverUserData/
