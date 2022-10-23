@@ -29,11 +29,11 @@ to clone the repo and install all the required npm packages.
 
 First run 
 ```
-node main --setup
+npm run setup
 ```
 
 then follow the steps to configure the bot. After that simply run 
 ```
-node main
+npm start
 ``` 
 to start it, then scan the qr code when it appears in the console, you can interact with the bot after it says `ready` in the console.
